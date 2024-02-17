@@ -62,11 +62,11 @@ if __name__ == "__main__":
         io = process(
             [TARGET, ],
             env={
-            #     "LD_PRELOAD":"{{locallib}}",
-            #     "LD_LIBRARY_PATH":"{{locallib}}",
+            #     "LD_PRELOAD":"{{libc}}",
+            #     "LD_LIBRARY_PATH":"",
             },
         )
-        # libc = ELF("{{locallib}}")
+        libc = ELF("{{locallib}}")
         debug(io)
     exploit(io, libc)
 """
@@ -98,7 +98,6 @@ def get_library_paths(executable_path):
     if library_paths:
         for path in library_paths:
             locallib=path
-
     return locallib
 
 def save_exploit_to_file(exploit_text, output):
