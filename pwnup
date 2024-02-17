@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import argparse
+import subprocess
+import jinja2
+import os
+
+mytmp = ( 
+"""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+from pwn import *
+from os import path
+import sys
+
+# ==========================[ Information
+DIR = path.dirname(path.abspath(__file__))
+EXECUTABLE = "/{{executable}}"
+TARGET = DIR + EXECUTABLE
+HOST, PORT = "{{target}}", {{port}}
+REMOTE, LOCAL = {{remote}}, False
+
+# ==========================[ Tools
+elf = ELF(TARGET)
+rop = ROP(elf)
+
+# ==========================[ Configuration
+context.update(
+    arch=["i386", "amd64", "aarch64"][1],
+    endian="little",
+    os="linux",
+    log_level = ['debug', 'info', 'warn'][2],
+    terminal = ['tmux', 'split-window', '-h'],
+)
+#context.binary = elf
+ 
+# ==========================[ Debug
+def debug(io):
+    #raw_input("Fire GDB!")
+    if len(sys.argv) > 1 and sys.argv[1] == "d":
+        cmd = \"""
+        #break main
+        \"""
+        gdb.attach(io, gdbscript=cmd)
+
+# ==========================[ Exploit
+def exploit(io, libc=null):
+    payload = b""
+    io.sendline(payload)
+    io.interactive()
+
+if __name__ == "__main__":
+    io, libc = null, null
+
+    if args.REMOTE:
+        REMOTE = True
+        io = remote(HOST, PORT)
+        # libc = ELF("{{libc}}")
+
+    else:
+        LOCAL = True
+        io = process(
+            [TARGET, ],
+            env={
+            #     "LD_PRELOAD":"{{locallib}}",
+            #     "LD_LIBRARY_PATH":"{{locallib}}",
+            },
+        )
+        # libc = ELF("{{locallib}}")
+        debug(io)
+    exploit(io, libc)
+"""
+)
+
+def generate_exploit(executable, target, port, remote, libc, locallib):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    #template_path = os.path.join(script_dir, "tmp.py")
+    template = jinja2.Template(mytmp)
+    exploit_text = template.render(executable=executable , target=target, port=port, remote=remote, libc=libc, locallib=locallib)
+    return exploit_text
+
+def get_library_paths(executable_path):
+    try:
+        ldd_output = subprocess.check_output(["ldd", executable_path], text=True, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        return 
+
+    library_paths = []
+    for line in ldd_output.splitlines():
+        if "=>" in line and "not found" not in line:
+            parts = line.split()
+            if len(parts) > 2:
+                library_path = parts[2]
+                if library_path.startswith("/"):
+                    library_paths.append(library_path)
+
+    locallib = "___"
+    if library_paths:
+        for path in library_paths:
+            locallib=path
+
+    return locallib
+
+def save_exploit_to_file(exploit_text, output):
+    with open(output, "w") as exploit_file:
+        exploit_file.write(exploit_text)
+
+def main():
+    parser = argparse.ArgumentParser(description="Exploit Template Generator")
+    parser.add_argument("-t", "--target", default="127.0.0.1", help="Target IP address")
+    parser.add_argument("-p", "--port", default=4444, type=int, help="Target port")
+    parser.add_argument("executable", help="Executable to Exploit")
+    parser.add_argument("-r", "--remote", action="store_true", help="Set remote mode (True/False)")
+    parser.add_argument("-l", "--libc", default="", help="Linked libc" )
+    parser.add_argument("-o", "--output", default='exploit.py', help="Output")
+
+    args = parser.parse_args()
+    executable_path = "args.executable"
+    locallib = get_library_paths(args.executable)
+    exploit_text = generate_exploit(args.executable, args.target, args.port, args.remote, args.libc,locallib)
+    #print(exploit_text)
+    save_exploit_to_file(exploit_text, args.output)
+
+if __name__ == "__main__":
+    main()
+
