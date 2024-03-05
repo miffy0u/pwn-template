@@ -18,7 +18,7 @@ DIR = path.dirname(path.abspath(__file__))
 EXECUTABLE = "/{{executable}}"
 TARGET = DIR + EXECUTABLE
 HOST, PORT = "{{target}}", {{port}}
-REMOTE, LOCAL = {{remote}}, False
+REMOTE, LOCAL = False, False
 
 # ==========================[ Tools
 elf = ELF(TARGET)
@@ -52,7 +52,7 @@ def exploit(io, libc=null):
 if __name__ == "__main__":
     io, libc = null, null
 
-    if args.REMOTE:
+    if len(sys.argv) > 1 and sys.argv[1] == "r":
         REMOTE = True
         io = remote(HOST, PORT)
         # libc = ELF("{{libc}}")
@@ -72,11 +72,11 @@ if __name__ == "__main__":
 """
 )
 
-def generate_exploit(executable, target, port, remote, libc, locallib):
+def generate_exploit(executable, target, port, libc, locallib):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     #template_path = os.path.join(script_dir, "tmp.py")
     template = jinja2.Template(mytmp)
-    exploit_text = template.render(executable=executable , target=target, port=port, remote=remote, libc=libc, locallib=locallib)
+    exploit_text = template.render(executable=executable , target=target, port=port, libc=libc, locallib=locallib)
     return exploit_text
 
 def get_library_paths(executable_path):
@@ -109,14 +109,13 @@ def main():
     parser.add_argument("-t", "--target", default="127.0.0.1", help="Target IP address")
     parser.add_argument("-p", "--port", default=4444, type=int, help="Target port")
     parser.add_argument("executable", help="Executable to Exploit")
-    parser.add_argument("-r", "--remote", action="store_true", help="Set remote mode (True/False)")
     parser.add_argument("-l", "--libc", default="", help="Linked libc" )
     parser.add_argument("-o", "--output", default='exploit.py', help="Output")
 
     args = parser.parse_args()
     executable_path = "args.executable"
     locallib = get_library_paths(args.executable)
-    exploit_text = generate_exploit(args.executable, args.target, args.port, args.remote, args.libc,locallib)
+    exploit_text = generate_exploit(args.executable, args.target, args.port, args.libc,locallib)
     #print(exploit_text)
     save_exploit_to_file(exploit_text, args.output)
 
